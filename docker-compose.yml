@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  speiseplan:
+    build: .
+    container_name: speiseplan-service
+    ports:
+      - "5123:5123"
+    restart: unless-stopped
+    volumes:
+      # Cache persistent speichern
+      - speiseplan_cache:/app/cache
+    environment:
+      - TZ=Europe/Berlin
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5123/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  speiseplan_cache:

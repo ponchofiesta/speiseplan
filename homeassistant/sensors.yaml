@@ -1,0 +1,144 @@
+# Beispiel Home Assistant REST Sensor Konfiguration
+# Diese Datei kann als Referenz oder Import verwendet werden
+
+rest:
+  # Sensor für den heutigen Speiseplan
+  - resource: http://localhost:5123/api/speiseplan/heute
+    scan_interval: 3600 # Jede Stunde aktualisieren
+    sensor:
+      - name: "Speiseplan Heute"
+        value_template: "{{ value_json.day | default('unbekannt') | title }}"
+        json_attributes:
+          - gerichte
+          - kw
+          - day
+          - message
+          - error
+        unique_id: speiseplan_heute
+        icon: mdi:food
+
+  # Sensor für den gesamten Wochenspeiseplan
+  - resource: http://localhost:5123/api/speiseplan
+    scan_interval: 3600
+    sensor:
+      - name: "Speiseplan Woche"
+        value_template: "KW {{ value_json.kw | default('?') }}"
+        json_attributes:
+          - menu
+          - kw
+          - year
+          - pdf_url
+          - updated
+          - error
+        unique_id: speiseplan_woche
+        icon: mdi:calendar-week
+
+  # Sensor für formatierten Text (ideal für Markdown-Karten)
+  - resource: http://localhost:5123/api/speiseplan/text
+    scan_interval: 3600
+    sensor:
+      - name: "Speiseplan Text"
+        value_template: "KW {{ value_json.kw | default('?') }}"
+        json_attributes:
+          - text
+          - kw
+        unique_id: speiseplan_text
+        icon: mdi:text-box
+
+# Template Sensoren für einzelne Tage
+template:
+  - sensor:
+      - name: "Speiseplan Montag"
+        unique_id: speiseplan_montag
+        icon: mdi:food
+        state: >
+          {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+          {% if menu and menu.montag and menu.montag.gerichte %}
+            {{ menu.montag.gerichte | length }} Gericht(e)
+          {% else %}
+            Nicht verfügbar
+          {% endif %}
+        attributes:
+          gerichte: >
+            {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+            {% if menu and menu.montag %}
+              {{ menu.montag.gerichte | default([]) }}
+            {% else %}
+              []
+            {% endif %}
+
+      - name: "Speiseplan Dienstag"
+        unique_id: speiseplan_dienstag
+        icon: mdi:food
+        state: >
+          {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+          {% if menu and menu.dienstag and menu.dienstag.gerichte %}
+            {{ menu.dienstag.gerichte | length }} Gericht(e)
+          {% else %}
+            Nicht verfügbar
+          {% endif %}
+        attributes:
+          gerichte: >
+            {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+            {% if menu and menu.dienstag %}
+              {{ menu.dienstag.gerichte | default([]) }}
+            {% else %}
+              []
+            {% endif %}
+
+      - name: "Speiseplan Mittwoch"
+        unique_id: speiseplan_mittwoch
+        icon: mdi:food
+        state: >
+          {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+          {% if menu and menu.mittwoch and menu.mittwoch.gerichte %}
+            {{ menu.mittwoch.gerichte | length }} Gericht(e)
+          {% else %}
+            Nicht verfügbar
+          {% endif %}
+        attributes:
+          gerichte: >
+            {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+            {% if menu and menu.mittwoch %}
+              {{ menu.mittwoch.gerichte | default([]) }}
+            {% else %}
+              []
+            {% endif %}
+
+      - name: "Speiseplan Donnerstag"
+        unique_id: speiseplan_donnerstag
+        icon: mdi:food
+        state: >
+          {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+          {% if menu and menu.donnerstag and menu.donnerstag.gerichte %}
+            {{ menu.donnerstag.gerichte | length }} Gericht(e)
+          {% else %}
+            Nicht verfügbar
+          {% endif %}
+        attributes:
+          gerichte: >
+            {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+            {% if menu and menu.donnerstag %}
+              {{ menu.donnerstag.gerichte | default([]) }}
+            {% else %}
+              []
+            {% endif %}
+
+      - name: "Speiseplan Freitag"
+        unique_id: speiseplan_freitag
+        icon: mdi:food
+        state: >
+          {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+          {% if menu and menu.freitag and menu.freitag.gerichte %}
+            {{ menu.freitag.gerichte | length }} Gericht(e)
+          {% else %}
+            Nicht verfügbar
+          {% endif %}
+        attributes:
+          gerichte: >
+            {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+            {% if menu and menu.freitag %}
+              {{ menu.freitag.gerichte | default([]) }}
+            {% else %}
+              []
+            {% endif %}
