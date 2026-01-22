@@ -1,14 +1,15 @@
 # Speiseplan Service für Home Assistant
 
-Ein Python-Service, der den Schul-Speiseplan von der Wollino-Webseite lädt, aus PDFs extrahiert und als REST API für Home Assistant bereitstellt.
+Ein Python-Service, der den Schul-Speiseplan von der Wollino-Website automatisch herunterlädt, aus PDFs extrahiert und als REST API für Home Assistant bereitstellt.
 
 ## Features
 
-- 🔍 Automatisches Finden der PDF für die aktuelle Kalenderwoche
+- 📥 **Automatischer PDF-Download** von der Wollino-Website
 - 📄 Extraktion des Menüs aus PDF-Dateien
 - 🌐 REST API für einfache Integration
 - 🏠 Fertige Home Assistant Konfiguration
-- 💾 Caching für bessere Performance
+- 💾 24-Stunden Caching für bessere Performance
+- 🐳 Docker-Image über GitHub Packages verfügbar
 - 📱 Unterstützung für Benachrichtigungen
 
 ## Installation
@@ -37,13 +38,17 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Service testen
+### 4. PDF-Dateien ablegen
+
+Lade die Speiseplan-PDFs von https://www.wollino.de/newpage herunter und lege sie in den Ordner `pdf_speiseplaene/`.
+
+### 5. Service testen
 
 ```bash
 python speiseplan_service.py
 ```
 
-### 5. API Server starten
+### 6. API Server starten
 
 ```bash
 python api_server.py
@@ -73,7 +78,7 @@ Siehe [homeassistant/configuration.md](homeassistant/configuration.md) für die 
 ```yaml
 rest:
   - resource: http://DEINE_SERVER_IP:5123/api/speiseplan/heute
-    scan_interval: 3600
+    scan_interval: 86400 # 1x täglich aktualisieren
     sensor:
       - name: "Speiseplan Heute"
         value_template: "{{ value_json.day | title }}"
@@ -95,44 +100,50 @@ content: |
   {% endfor %}
 ```
 
-## Docker Deployment (optional)
+## Docker Deployment
 
-### Dockerfile
+### Mit GitHub Packages (empfohlen)
 
-```dockerfile
-FROM python:3.11-slim
+Das Docker-Image wird automatisch bei jedem Push auf `main` gebaut und in GitHub Packages veröffentlicht.
 
-WORKDIR /app
+```bash
+# Image pullen (ersetze USERNAME mit dem GitHub-Nutzernamen)
+docker pull ghcr.io/USERNAME/speiseplan:latest
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Mit Docker Compose starten
+docker-compose up -d
+```
 
-COPY *.py .
+### Lokales Build
 
-EXPOSE 5123
+```bash
+# Image lokal bauen
+docker build -t speiseplan .
 
-CMD ["python", "api_server.py"]
+# Container starten
+docker run -d -p 5123:5123 --name speiseplan speiseplan
 ```
 
 ### Docker Compose
+
+Die `docker-compose.yml` ist bereits konfiguriert:
 
 ```yaml
 version: "3.8"
 services:
   speiseplan:
-    build: .
+    image: ghcr.io/USERNAME/speiseplan:latest
     ports:
       - "5123:5123"
     restart: unless-stopped
     volumes:
-      - ./cache:/app/cache
+      - speiseplan_cache:/app/cache
+      - speiseplan_pdfs:/app/pdf_speiseplaene
+    environment:
+      - TZ=Europe/Berlin
 ```
 
-### Container starten
-
-```bash
-docker-compose up -d
-```
+Für lokales Build ändere `image:` zu `build: .`
 
 ## Als Systemd Service (Linux)
 

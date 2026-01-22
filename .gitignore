@@ -1,5 +1,6 @@
 # Speiseplan Cache
 speiseplan_cache.json
+pdf_speiseplaene
 
 # Python
 __pycache__/

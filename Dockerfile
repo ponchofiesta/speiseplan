@@ -2,8 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Systemabhängigkeiten für pdfplumber installieren
+# Systemabhängigkeiten für pdfplumber und curl (healthcheck) installieren
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -11,8 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY *.py .
 
-# Cache-Verzeichnis erstellen
-RUN mkdir -p /app/cache
+# PDF-Ordner und Cache-Verzeichnis erstellen
+RUN mkdir -p /app/pdf_speiseplaene /app/cache
 
 EXPOSE 5123
 

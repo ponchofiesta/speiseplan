@@ -8,7 +8,7 @@ Füge folgende Konfiguration in deine `configuration.yaml` ein:
 # Speiseplan REST Sensor
 rest:
   - resource: http://DEINE_SERVER_IP:5123/api/speiseplan/heute
-    scan_interval: 3600 # Alle Stunde aktualisieren
+    scan_interval: 86400 # 1x täglich aktualisieren (24h)
     sensor:
       - name: "Speiseplan Heute"
         value_template: "{{ value_json.day | title }}"
@@ -19,7 +19,7 @@ rest:
         unique_id: speiseplan_heute
 
   - resource: http://DEINE_SERVER_IP:5123/api/speiseplan
-    scan_interval: 3600
+    scan_interval: 86400 # 1x täglich aktualisieren
     sensor:
       - name: "Speiseplan Woche"
         value_template: "KW {{ value_json.kw }}"
@@ -27,11 +27,11 @@ rest:
           - menu
           - kw
           - year
-          - pdf_url
+          - pdf_file
         unique_id: speiseplan_woche
 
   - resource: http://DEINE_SERVER_IP:5123/api/speiseplan/text
-    scan_interval: 3600
+    scan_interval: 86400 # 1x täglich aktualisieren
     sensor:
       - name: "Speiseplan Text"
         value_template: "KW {{ value_json.kw }}"

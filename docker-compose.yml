@@ -2,7 +2,10 @@ version: "3.8"
 
 services:
   speiseplan:
-    build: .
+    # Für lokales Build:
+    # build: .
+    # Für GitHub Packages (ersetze USERNAME mit deinem GitHub-Nutzernamen):
+    image: ghcr.io/USERNAME/speiseplan:latest
     container_name: speiseplan-service
     ports:
       - "5123:5123"
@@ -10,6 +13,8 @@ services:
     volumes:
       # Cache persistent speichern
       - speiseplan_cache:/app/cache
+      # PDFs persistent speichern
+      - speiseplan_pdfs:/app/pdf_speiseplaene
     environment:
       - TZ=Europe/Berlin
     healthcheck:
@@ -21,3 +26,4 @@ services:
 
 volumes:
   speiseplan_cache:
+  speiseplan_pdfs:
