@@ -305,3 +305,60 @@ entities_card:
     - entity: sensor.speiseplan_heute
       name: Heute
       icon: mdi:food
+
+# ============================================================
+# TABELLEN-LAYOUT: Kompakte Wochenübersicht
+# ============================================================
+table_week_card:
+  type: markdown
+  title: 📅 Speiseplan KW {{ state_attr('sensor.speiseplan_woche', 'kw') }}
+  content: |
+    {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+    {% if menu %}
+    | Tag | 🍽️ Hauptgericht | 🍨 Dessert |
+    |-----|-----------------|------------|
+    | 🔵 Mo | {{ menu.montag.gerichte | join('<br>') if menu.montag and menu.montag.gerichte else '-' }} | {{ menu.montag.desserts | join('<br>') if menu.montag and menu.montag.desserts else '-' }} |
+    | 🟢 Di | {{ menu.dienstag.gerichte | join('<br>') if menu.dienstag and menu.dienstag.gerichte else '-' }} | {{ menu.dienstag.desserts | join('<br>') if menu.dienstag and menu.dienstag.desserts else '-' }} |
+    | 🟡 Mi | {{ menu.mittwoch.gerichte | join('<br>') if menu.mittwoch and menu.mittwoch.gerichte else '-' }} | {{ menu.mittwoch.desserts | join('<br>') if menu.mittwoch and menu.mittwoch.desserts else '-' }} |
+    | 🟠 Do | {{ menu.donnerstag.gerichte | join('<br>') if menu.donnerstag and menu.donnerstag.gerichte else '-' }} | {{ menu.donnerstag.desserts | join('<br>') if menu.donnerstag and menu.donnerstag.desserts else '-' }} |
+    | 🔴 Fr | {{ menu.freitag.gerichte | join('<br>') if menu.freitag and menu.freitag.gerichte else '-' }} | {{ menu.freitag.desserts | join('<br>') if menu.freitag and menu.freitag.desserts else '-' }} |
+    {% else %}
+    ⚠️ Speiseplan nicht verfügbar
+    {% endif %}
+
+# ============================================================
+# TABELLEN-LAYOUT: Nur Hauptgerichte (schmaler)
+# ============================================================
+table_main_only_card:
+  type: markdown
+  title: 📅 Speiseplan KW {{ state_attr('sensor.speiseplan_woche', 'kw') }}
+  content: |
+    {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+    {% if menu %}
+    | Tag | Hauptgericht |
+    |-----|--------------|
+    | 🔵 Montag | {{ menu.montag.gerichte | join('<br>') if menu.montag and menu.montag.gerichte else '-' }} |
+    | 🟢 Dienstag | {{ menu.dienstag.gerichte | join('<br>') if menu.dienstag and menu.dienstag.gerichte else '-' }} |
+    | 🟡 Mittwoch | {{ menu.mittwoch.gerichte | join('<br>') if menu.mittwoch and menu.mittwoch.gerichte else '-' }} |
+    | 🟠 Donnerstag | {{ menu.donnerstag.gerichte | join('<br>') if menu.donnerstag and menu.donnerstag.gerichte else '-' }} |
+    | 🔴 Freitag | {{ menu.freitag.gerichte | join('<br>') if menu.freitag and menu.freitag.gerichte else '-' }} |
+    {% else %}
+    ⚠️ Speiseplan nicht verfügbar
+    {% endif %}
+
+# ============================================================
+# TABELLEN-LAYOUT: Vertikal (Tag pro Zeile, Details)
+# ============================================================
+table_vertical_card:
+  type: markdown
+  title: 📅 Speiseplan KW {{ state_attr('sensor.speiseplan_woche', 'kw') }}
+  content: |
+    {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+    {% if menu %}
+    | | Montag | Dienstag | Mittwoch | Donnerstag | Freitag |
+    |---|--------|----------|----------|------------|---------|
+    | **🍽️** | {% for g in menu.montag.gerichte %}{{ g }}{% if not loop.last %}<br>{% endif %}{% endfor %} | {% for g in menu.dienstag.gerichte %}{{ g }}{% if not loop.last %}<br>{% endif %}{% endfor %} | {% for g in menu.mittwoch.gerichte %}{{ g }}{% if not loop.last %}<br>{% endif %}{% endfor %} | {% for g in menu.donnerstag.gerichte %}{{ g }}{% if not loop.last %}<br>{% endif %}{% endfor %} | {% for g in menu.freitag.gerichte %}{{ g }}{% if not loop.last %}<br>{% endif %}{% endfor %} |
+    | **🍨** | {{ menu.montag.desserts | join('<br>') if menu.montag.desserts else '-' }} | {{ menu.dienstag.desserts | join('<br>') if menu.dienstag.desserts else '-' }} | {{ menu.mittwoch.desserts | join('<br>') if menu.mittwoch.desserts else '-' }} | {{ menu.donnerstag.desserts | join('<br>') if menu.donnerstag.desserts else '-' }} | {{ menu.freitag.desserts | join('<br>') if menu.freitag.desserts else '-' }} |
+    {% else %}
+    ⚠️ Speiseplan nicht verfügbar
+    {% endif %}
