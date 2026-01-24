@@ -100,12 +100,19 @@ def parse_wollino_by_rows(words: list, debug: bool = False) -> dict:
     """
     Parst den Wollino-Speiseplan basierend auf Y-Position.
 
-    Das PDF-Layout:
-    - Spalte links: Info/Legende
-    - Spalte mitte-links: Tages-Marker (OM, ID, IM, OD, RF)
-    - Spalte mitte: Menü 1
-    - Spalte mitte-rechts: Menü 2
-    - Spalte rechts: Desserts/Snacks
+    Das PDF-Layout (von links nach rechts):
+    - Spalte 1 (x~0-100): Legende/Info
+    - Spalte 2 (x~100-230): Kreuzkontaminationshinweise + Tages-Marker
+    - Spalte 3 (x~270-380): Menü 1 "Ich mag Alles"
+    - Spalte 4 (x~420-520): Menü 2 "Gemüsefreunde"
+    - Spalte 5 (x~600+): Desserts/Snacks
+
+    Die Tages-Marker (OM, ID, IM, OD, RF) stehen am ANFANG jedes Tages.
+    Wir verwenden nur Menü 1 (Spalte 3) um Duplikate zu vermeiden.
+
+    WICHTIG: Die Suppe/alternatives Gericht steht oft in der LETZTEN Zeile
+    vor dem nächsten Tages-Marker, gehört aber zum NÄCHSTEN Tag!
+    Daher ziehen wir einen Offset ab.
     """
     menu = {
         "montag": {"gerichte": []},
@@ -141,16 +148,27 @@ def parse_wollino_by_rows(words: list, debug: bool = False) -> dict:
     sorted_days = sorted(day_markers.items(), key=lambda x: x[1])
 
     # Berechne Y-Bereiche für jeden Tag
+    # WICHTIG: Das erste Gericht kann leicht ÜBER dem Marker stehen (kleinere Y-Werte)
+    # Daher beginnen wir den Bereich etwas VOR dem Marker
     day_ranges = {}
-    for i, (day, y_start) in enumerate(sorted_days):
+    HEADER_OFFSET = (
+        20  # Pixel VOR dem Marker, die noch zum Tag gehören (erstes Gericht)
+    )
+    SUPPE_OFFSET = 25  # Pixel VOR dem nächsten Marker, die zum NÄCHSTEN Tag gehören
+
+    for i, (day, y_marker) in enumerate(sorted_days):
+        # Tag beginnt etwas VOR dem Marker
+        y_start = y_marker - HEADER_OFFSET
+
         if i + 1 < len(sorted_days):
-            y_end = sorted_days[i + 1][1]
+            next_marker_y = sorted_days[i + 1][1]
+            y_end = next_marker_y - SUPPE_OFFSET
         else:
             y_end = 600
         day_ranges[day] = (y_start, y_end)
 
     if debug:
-        logger.info(f"Tag-Bereiche: {day_ranges}")
+        logger.info(f"Tag-Bereiche (mit Offset): {day_ranges}")
 
     # Wörter die wir ignorieren
     skip_words = {
@@ -162,13 +180,29 @@ def parse_wollino_by_rows(words: list, debug: bool = False) -> dict:
         "menü",
         "menüplan",
         "kw",
-        "vom",
         "bis",
         "stand:",
+        # Zusatzstoffe und Allergene
         "zusatzstoffe",
         "allergene",
         "farbstoff",
         "konservierung",
+        "geschwärzt",
+        "konservierungsstoffe",
+        "geschwefelt",
+        "phosphat",
+        "antioxidationsmittel",
+        "geschmacksverstärker",
+        "gewachst",
+        "süßungsmittel",
+        "phenylalaninquelle",
+        "abführend",
+        "koffeinhaltig",
+        "chininhaltig",
+        "schutzatmosphähre",
+        "verpackt",
+        "unter",
+        # Allergen-Namen
         "gluten",
         "krebstiere",
         "eier",
@@ -196,7 +230,11 @@ def parse_wollino_by_rows(words: list, debug: bool = False) -> dict:
         "macadamia",
         "mandel",
         "haselnuss",
+        "schwefeldioxid",
+        "lupine",
+        # Sonstige
         "sonderkost",
+        "sonderkost:",
         "anmeldung",
         "grundschule",
         "wolfsburg",
@@ -204,6 +242,21 @@ def parse_wollino_by_rows(words: list, debug: bool = False) -> dict:
         "wollino",
         "gmbh",
         "woche",
+        "spuren",
+        "durch",
+        "minationen",
+        "können",
+        "nicht",
+        "ausgeschlossen",
+        "werden.",
+        "kreuzkonta-",
+        "allergien",
+        "unverträglichkeiten",
+        "rücksprache",
+        "rücksprache.",
+        "warmverpflegung:",
+        "ferien",
+        # Monate
         "januar",
         "februar",
         "märz",
@@ -216,9 +269,12 @@ def parse_wollino_by_rows(words: list, debug: bool = False) -> dict:
         "oktober",
         "november",
         "dezember",
+        # Jahre
         "2024",
         "2025",
         "2026",
+        "2027",
+        # Wochentage
         "montag",
         "dienstag",
         "mittwoch",
@@ -229,11 +285,15 @@ def parse_wollino_by_rows(words: list, debug: bool = False) -> dict:
         "mi",
         "do",
         "fr",
+        # Kategorien (nur die, die nicht als Zutat vorkommen)
+        "vegan",
+        "veggie",
     }
 
-    # X-Position der Menü-Spalten
-    menu_x_start = 100
-    menu_x_end = 500
+    # X-Bereiche für Menü 1 Spalte (ignoriere Menü 2 um Duplikate zu vermeiden)
+    # Menü 1 liegt bei x~267-380, Menü 2 bei x~420-520
+    MENU1_X_START = 265  # Etwas weiter links für "Vollkorn" etc.
+    MENU1_X_END = 400
 
     # Sammle Wörter nach Tag
     day_words = {day: [] for day in menu}
@@ -243,27 +303,49 @@ def parse_wollino_by_rows(words: list, debug: bool = False) -> dict:
         x = w["x0"]
         y = w["top"]
 
-        # Skip wenn zu weit links oder rechts
-        if x < menu_x_start or x > menu_x_end:
+        # Nur Menü 1 Spalte verwenden
+        if x < MENU1_X_START or x > MENU1_X_END:
             continue
 
         # Skip Marker und bekannte Skip-Wörter
         if text.lower() in skip_words:
             continue
 
-        # Skip einzelne Buchstaben/Zahlen (Allergene)
-        if len(text) <= 2:
+        # Skip einzelne Buchstaben/Zahlen (Allergene), aber erlaube wichtige kurze Wörter
+        allowed_short_words = {"in", "im", "mit", "vom", "und", "à", "la"}
+        if len(text) <= 2 and text.lower() not in allowed_short_words:
             continue
 
-        # Skip wenn es ein Allergen-Code ist
+        # Skip wenn es ein Allergen-Code ist (A, B, C, etc. oder Zahlen)
         if re.match(r"^[A-Z]{1,2}\d*$", text) or re.match(r"^\d{1,2}$", text):
             continue
 
+        # Skip Klammern mit Allergenen wie "(Weizen)" oder "(Weizen, Roggen)"
+        if text.startswith("(") and text.endswith(")"):
+            continue
+
         # Finde den Tag für diese Y-Position
+        assigned = False
         for day, (y_start, y_end) in day_ranges.items():
             if y_start <= y < y_end:
                 day_words[day].append({"text": text, "x": x, "y": y})
+                assigned = True
                 break
+
+        # Wenn nicht zugeordnet, prüfe ob es im "Suppen-Bereich" liegt (kurz vor nächstem Marker)
+        if not assigned:
+            for i, (day, y_marker) in enumerate(sorted_days):
+                if i + 1 < len(sorted_days):
+                    next_day = sorted_days[i + 1][0]
+                    next_marker_y = sorted_days[i + 1][1]
+                    # Wenn y im Bereich [y_end, next_marker_y] liegt, gehört es zum NÄCHSTEN Tag
+                    if day_ranges[day][1] <= y < next_marker_y:
+                        day_words[next_day].append({"text": text, "x": x, "y": y})
+                        if debug:
+                            logger.info(
+                                f"Suppen-Bereich: '{text}' zugeordnet zu {next_day}"
+                            )
+                        break
 
     # Gruppiere Wörter zu Zeilen
     for day, words_list in day_words.items():
