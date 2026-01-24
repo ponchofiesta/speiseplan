@@ -115,11 +115,11 @@ def parse_wollino_by_rows(words: list, debug: bool = False) -> dict:
     Daher ziehen wir einen Offset ab.
     """
     menu = {
-        "montag": {"gerichte": []},
-        "dienstag": {"gerichte": []},
-        "mittwoch": {"gerichte": []},
-        "donnerstag": {"gerichte": []},
-        "freitag": {"gerichte": []},
+        "montag": {"gerichte": [], "desserts": []},
+        "dienstag": {"gerichte": [], "desserts": []},
+        "mittwoch": {"gerichte": [], "desserts": []},
+        "donnerstag": {"gerichte": [], "desserts": []},
+        "freitag": {"gerichte": [], "desserts": []},
     }
 
     # Finde die Y-Positionen der Tages-Marker
@@ -295,19 +295,30 @@ def parse_wollino_by_rows(words: list, debug: bool = False) -> dict:
     MENU1_X_START = 265  # Etwas weiter links für "Vollkorn" etc.
     MENU1_X_END = 400
 
-    # Sammle Wörter nach Tag
+    # X-Bereich für Desserts/Vorspeisen Spalte
+    # Desserts liegen bei x~600-700, Nachmittagssnacks bei x~714+
+    DESSERT_X_START = 590
+    DESSERT_X_END = 710
+
+    # Sammle Wörter nach Tag (für Gerichte)
     day_words = {day: [] for day in menu}
+    # Sammle Wörter nach Tag (für Desserts)
+    day_desserts = {day: [] for day in menu}
+
+    # Zusätzliche skip_words für Dessert-Spalte
+    dessert_skip_words = skip_words | {
+        "vorspeisen,",
+        "desserts",
+        "nachmittagssnacks",
+        "snacks",
+    }
 
     for w in words:
         text = w["text"].strip()
         x = w["x0"]
         y = w["top"]
 
-        # Nur Menü 1 Spalte verwenden
-        if x < MENU1_X_START or x > MENU1_X_END:
-            continue
-
-        # Skip Marker und bekannte Skip-Wörter
+        # Skip Marker und bekannte Skip-Wörter (global)
         if text.lower() in skip_words:
             continue
 
@@ -324,11 +335,25 @@ def parse_wollino_by_rows(words: list, debug: bool = False) -> dict:
         if text.startswith("(") and text.endswith(")"):
             continue
 
+        # Prüfe welche Spalte - Menü 1 oder Desserts
+        is_menu1 = MENU1_X_START <= x <= MENU1_X_END
+        is_dessert = DESSERT_X_START <= x <= DESSERT_X_END
+
+        if not is_menu1 and not is_dessert:
+            continue
+
+        # Skip Dessert-spezifische Überschriften
+        if is_dessert and text.lower() in dessert_skip_words:
+            continue
+
         # Finde den Tag für diese Y-Position
         assigned = False
         for day, (y_start, y_end) in day_ranges.items():
             if y_start <= y < y_end:
-                day_words[day].append({"text": text, "x": x, "y": y})
+                if is_menu1:
+                    day_words[day].append({"text": text, "x": x, "y": y})
+                else:
+                    day_desserts[day].append({"text": text, "x": x, "y": y})
                 assigned = True
                 break
 
@@ -340,14 +365,19 @@ def parse_wollino_by_rows(words: list, debug: bool = False) -> dict:
                     next_marker_y = sorted_days[i + 1][1]
                     # Wenn y im Bereich [y_end, next_marker_y] liegt, gehört es zum NÄCHSTEN Tag
                     if day_ranges[day][1] <= y < next_marker_y:
-                        day_words[next_day].append({"text": text, "x": x, "y": y})
+                        if is_menu1:
+                            day_words[next_day].append({"text": text, "x": x, "y": y})
+                        else:
+                            day_desserts[next_day].append(
+                                {"text": text, "x": x, "y": y}
+                            )
                         if debug:
                             logger.info(
                                 f"Suppen-Bereich: '{text}' zugeordnet zu {next_day}"
                             )
                         break
 
-    # Gruppiere Wörter zu Zeilen
+    # Gruppiere Wörter zu Zeilen (für Gerichte)
     for day, words_list in day_words.items():
         if not words_list:
             continue
@@ -380,6 +410,40 @@ def parse_wollino_by_rows(words: list, debug: bool = False) -> dict:
 
         if debug and menu[day]["gerichte"]:
             logger.info(f"{day}: {menu[day]['gerichte']}")
+
+    # Gruppiere Desserts zu Zeilen
+    for day, desserts_list in day_desserts.items():
+        if not desserts_list:
+            continue
+
+        # Sortiere nach Y, dann X
+        desserts_list.sort(key=lambda w: (round(w["y"] / 5) * 5, w["x"]))
+
+        # Gruppiere nach Y-Position (Toleranz 8 Pixel)
+        lines = []
+        current_line = []
+        last_y = None
+
+        for w in desserts_list:
+            if last_y is None or abs(w["y"] - last_y) < 8:
+                current_line.append(w["text"])
+            else:
+                if current_line:
+                    lines.append(" ".join(current_line))
+                current_line = [w["text"]]
+            last_y = w["y"]
+
+        if current_line:
+            lines.append(" ".join(current_line))
+
+        # Bereinige und füge hinzu
+        for line in lines:
+            clean = clean_menu_text(line, dessert_skip_words)
+            if clean and len(clean) > 2 and clean not in menu[day]["desserts"]:
+                menu[day]["desserts"].append(clean)
+
+        if debug and menu[day]["desserts"]:
+            logger.info(f"{day} (Desserts): {menu[day]['desserts']}")
 
     return menu
 
@@ -468,10 +532,20 @@ def format_menu_for_display(menu: dict) -> str:
 
     for day, emoji_label in day_emojis.items():
         gerichte = menu.get(day, {}).get("gerichte", [])
-        if gerichte:
+        desserts = menu.get(day, {}).get("desserts", [])
+
+        if gerichte or desserts:
             output.append(f"\n{emoji_label}:")
-            for gericht in gerichte:
-                output.append(f"  • {gericht}")
+
+            if gerichte:
+                output.append("  📍 Hauptgericht:")
+                for gericht in gerichte:
+                    output.append(f"    • {gericht}")
+
+            if desserts:
+                output.append("  🍨 Vorspeise/Dessert:")
+                for dessert in desserts:
+                    output.append(f"    • {dessert}")
         else:
             output.append(f"\n{emoji_label}: Kein Menü")
 

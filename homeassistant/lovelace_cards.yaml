@@ -1,19 +1,121 @@
 # Lovelace Dashboard Karten für den Speiseplan
 # Diese können direkt im Dashboard-Editor eingefügt werden
 
-# Einfache Markdown-Karte für den kompletten Wochenspeiseplan
-simple_week_card:
+# ============================================================
+# EMPFOHLENE KARTE: Übersichtliche Wochendarstellung mit Desserts
+# ============================================================
+week_card_with_desserts:
   type: markdown
-  title: 🍽️ Speiseplan der Woche
+  title: 📅 Speiseplan KW {{ state_attr('sensor.speiseplan_woche', 'kw') }}
   content: |
-    {{ state_attr('sensor.speiseplan_text', 'text') }}
+    {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
 
-# Karte für das heutige Menü
+    {% if menu %}
+    ---
+    ### 🔵 Montag
+    {% if menu.montag and menu.montag.gerichte %}
+    🍽️ **Hauptgericht:**
+    {% for gericht in menu.montag.gerichte %}
+    - {{ gericht }}
+    {% endfor %}
+    {% endif %}
+    {% if menu.montag and menu.montag.desserts and menu.montag.desserts | length > 0 %}
+    🍨 **Vorspeise/Dessert:**
+    {% for dessert in menu.montag.desserts %}
+    - {{ dessert }}
+    {% endfor %}
+    {% endif %}
+    {% if not menu.montag or (not menu.montag.gerichte and not menu.montag.desserts) %}
+    _Kein Menü_
+    {% endif %}
+
+    ---
+    ### 🟢 Dienstag
+    {% if menu.dienstag and menu.dienstag.gerichte %}
+    🍽️ **Hauptgericht:**
+    {% for gericht in menu.dienstag.gerichte %}
+    - {{ gericht }}
+    {% endfor %}
+    {% endif %}
+    {% if menu.dienstag and menu.dienstag.desserts and menu.dienstag.desserts | length > 0 %}
+    🍨 **Vorspeise/Dessert:**
+    {% for dessert in menu.dienstag.desserts %}
+    - {{ dessert }}
+    {% endfor %}
+    {% endif %}
+    {% if not menu.dienstag or (not menu.dienstag.gerichte and not menu.dienstag.desserts) %}
+    _Kein Menü_
+    {% endif %}
+
+    ---
+    ### 🟡 Mittwoch
+    {% if menu.mittwoch and menu.mittwoch.gerichte %}
+    🍽️ **Hauptgericht:**
+    {% for gericht in menu.mittwoch.gerichte %}
+    - {{ gericht }}
+    {% endfor %}
+    {% endif %}
+    {% if menu.mittwoch and menu.mittwoch.desserts and menu.mittwoch.desserts | length > 0 %}
+    🍨 **Vorspeise/Dessert:**
+    {% for dessert in menu.mittwoch.desserts %}
+    - {{ dessert }}
+    {% endfor %}
+    {% endif %}
+    {% if not menu.mittwoch or (not menu.mittwoch.gerichte and not menu.mittwoch.desserts) %}
+    _Kein Menü_
+    {% endif %}
+
+    ---
+    ### 🟠 Donnerstag
+    {% if menu.donnerstag and menu.donnerstag.gerichte %}
+    🍽️ **Hauptgericht:**
+    {% for gericht in menu.donnerstag.gerichte %}
+    - {{ gericht }}
+    {% endfor %}
+    {% endif %}
+    {% if menu.donnerstag and menu.donnerstag.desserts and menu.donnerstag.desserts | length > 0 %}
+    🍨 **Vorspeise/Dessert:**
+    {% for dessert in menu.donnerstag.desserts %}
+    - {{ dessert }}
+    {% endfor %}
+    {% endif %}
+    {% if not menu.donnerstag or (not menu.donnerstag.gerichte and not menu.donnerstag.desserts) %}
+    _Kein Menü_
+    {% endif %}
+
+    ---
+    ### 🔴 Freitag
+    {% if menu.freitag and menu.freitag.gerichte %}
+    🍽️ **Hauptgericht:**
+    {% for gericht in menu.freitag.gerichte %}
+    - {{ gericht }}
+    {% endfor %}
+    {% endif %}
+    {% if menu.freitag and menu.freitag.desserts and menu.freitag.desserts | length > 0 %}
+    🍨 **Vorspeise/Dessert:**
+    {% for dessert in menu.freitag.desserts %}
+    - {{ dessert }}
+    {% endfor %}
+    {% endif %}
+    {% if not menu.freitag or (not menu.freitag.gerichte and not menu.freitag.desserts) %}
+    _Kein Menü_
+    {% endif %}
+
+    ---
+    _Zuletzt aktualisiert: {{ state_attr('sensor.speiseplan_woche', 'updated')[:16] | replace('T', ' ') }}_
+    {% else %}
+    ⚠️ Speiseplan nicht verfügbar
+    {% endif %}
+
+# ============================================================
+# Karte für das heutige Menü (mit Desserts)
+# ============================================================
 today_card:
   type: markdown
   title: 🍴 Heute gibt es
   content: |
     {% set gerichte = state_attr('sensor.speiseplan_heute', 'gerichte') %}
+    {% set desserts = state_attr('sensor.speiseplan_heute', 'desserts') %}
     {% set message = state_attr('sensor.speiseplan_heute', 'message') %}
     {% set error = state_attr('sensor.speiseplan_heute', 'error') %}
 
@@ -22,70 +124,177 @@ today_card:
     {% elif message %}
     ℹ️ {{ message }}
     {% elif gerichte and gerichte | length > 0 %}
+    🍽️ **Hauptgericht:**
     {% for gericht in gerichte %}
-    **{{ gericht }}**
+    - {{ gericht }}
     {% endfor %}
+
+    {% if desserts and desserts | length > 0 %}
+    🍨 **Vorspeise/Dessert:**
+    {% for dessert in desserts %}
+    - {{ dessert }}
+    {% endfor %}
+    {% endif %}
     {% else %}
     Kein Menü für heute verfügbar
     {% endif %}
 
-# Detaillierte Wochenkarte mit Emojis
-detailed_week_card:
+# ============================================================
+# Kompakte Tages-Karten (Vertical Stack)
+# ============================================================
+compact_day_cards:
+  type: vertical-stack
+  cards:
+    - type: markdown
+      title: 🔵 Montag
+      content: |
+        {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+        {% if menu and menu.montag %}
+        {% if menu.montag.gerichte %}{% for g in menu.montag.gerichte %}• {{ g }}
+        {% endfor %}{% endif %}
+        {% if menu.montag.desserts and menu.montag.desserts | length > 0 %}🍨 {% for d in menu.montag.desserts %}{{ d }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+        {% else %}_-_{% endif %}
+
+    - type: markdown
+      title: 🟢 Dienstag
+      content: |
+        {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+        {% if menu and menu.dienstag %}
+        {% if menu.dienstag.gerichte %}{% for g in menu.dienstag.gerichte %}• {{ g }}
+        {% endfor %}{% endif %}
+        {% if menu.dienstag.desserts and menu.dienstag.desserts | length > 0 %}🍨 {% for d in menu.dienstag.desserts %}{{ d }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+        {% else %}_-_{% endif %}
+
+    - type: markdown
+      title: 🟡 Mittwoch
+      content: |
+        {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+        {% if menu and menu.mittwoch %}
+        {% if menu.mittwoch.gerichte %}{% for g in menu.mittwoch.gerichte %}• {{ g }}
+        {% endfor %}{% endif %}
+        {% if menu.mittwoch.desserts and menu.mittwoch.desserts | length > 0 %}🍨 {% for d in menu.mittwoch.desserts %}{{ d }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+        {% else %}_-_{% endif %}
+
+    - type: markdown
+      title: 🟠 Donnerstag
+      content: |
+        {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+        {% if menu and menu.donnerstag %}
+        {% if menu.donnerstag.gerichte %}{% for g in menu.donnerstag.gerichte %}• {{ g }}
+        {% endfor %}{% endif %}
+        {% if menu.donnerstag.desserts and menu.donnerstag.desserts | length > 0 %}🍨 {% for d in menu.donnerstag.desserts %}{{ d }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+        {% else %}_-_{% endif %}
+
+    - type: markdown
+      title: 🔴 Freitag
+      content: |
+        {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+        {% if menu and menu.freitag %}
+        {% if menu.freitag.gerichte %}{% for g in menu.freitag.gerichte %}• {{ g }}
+        {% endfor %}{% endif %}
+        {% if menu.freitag.desserts and menu.freitag.desserts | length > 0 %}🍨 {% for d in menu.freitag.desserts %}{{ d }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+        {% else %}_-_{% endif %}
+
+# ============================================================
+# Grid-Layout für Tablets/Desktop (2 Spalten)
+# ============================================================
+grid_layout:
+  type: grid
+  columns: 2
+  square: false
+  cards:
+    - type: markdown
+      title: 🔵 Montag
+      content: |
+        {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+        {% if menu and menu.montag and menu.montag.gerichte %}
+        **🍽️ Hauptgericht**
+        {% for g in menu.montag.gerichte %}- {{ g }}
+        {% endfor %}
+        {% if menu.montag.desserts and menu.montag.desserts | length > 0 %}
+        **🍨 Dessert**
+        {% for d in menu.montag.desserts %}- {{ d }}
+        {% endfor %}{% endif %}
+        {% else %}_Kein Menü_{% endif %}
+
+    - type: markdown
+      title: 🟢 Dienstag
+      content: |
+        {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+        {% if menu and menu.dienstag and menu.dienstag.gerichte %}
+        **🍽️ Hauptgericht**
+        {% for g in menu.dienstag.gerichte %}- {{ g }}
+        {% endfor %}
+        {% if menu.dienstag.desserts and menu.dienstag.desserts | length > 0 %}
+        **🍨 Dessert**
+        {% for d in menu.dienstag.desserts %}- {{ d }}
+        {% endfor %}{% endif %}
+        {% else %}_Kein Menü_{% endif %}
+
+    - type: markdown
+      title: 🟡 Mittwoch
+      content: |
+        {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+        {% if menu and menu.mittwoch and menu.mittwoch.gerichte %}
+        **🍽️ Hauptgericht**
+        {% for g in menu.mittwoch.gerichte %}- {{ g }}
+        {% endfor %}
+        {% if menu.mittwoch.desserts and menu.mittwoch.desserts | length > 0 %}
+        **🍨 Dessert**
+        {% for d in menu.mittwoch.desserts %}- {{ d }}
+        {% endfor %}{% endif %}
+        {% else %}_Kein Menü_{% endif %}
+
+    - type: markdown
+      title: 🟠 Donnerstag
+      content: |
+        {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+        {% if menu and menu.donnerstag and menu.donnerstag.gerichte %}
+        **🍽️ Hauptgericht**
+        {% for g in menu.donnerstag.gerichte %}- {{ g }}
+        {% endfor %}
+        {% if menu.donnerstag.desserts and menu.donnerstag.desserts | length > 0 %}
+        **🍨 Dessert**
+        {% for d in menu.donnerstag.desserts %}- {{ d }}
+        {% endfor %}{% endif %}
+        {% else %}_Kein Menü_{% endif %}
+
+    - type: markdown
+      title: 🔴 Freitag
+      content: |
+        {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+        {% if menu and menu.freitag and menu.freitag.gerichte %}
+        **🍽️ Hauptgericht**
+        {% for g in menu.freitag.gerichte %}- {{ g }}
+        {% endfor %}
+        {% if menu.freitag.desserts and menu.freitag.desserts | length > 0 %}
+        **🍨 Dessert**
+        {% for d in menu.freitag.desserts %}- {{ d }}
+        {% endfor %}{% endif %}
+        {% else %}_Kein Menü_{% endif %}
+
+    - type: entities
+      title: 📊 Status
+      entities:
+        - entity: sensor.speiseplan_woche
+          name: Aktuelle Woche
+          icon: mdi:calendar-week
+        - entity: sensor.speiseplan_heute
+          name: Heute
+          icon: mdi:food
+
+# ============================================================
+# Einfache Markdown-Karte für den kompletten Wochenspeiseplan
+# ============================================================
+simple_week_card:
   type: markdown
-  title: 📅 Speiseplan KW {{ state_attr('sensor.speiseplan_woche', 'kw') }}
+  title: 🍽️ Speiseplan der Woche
   content: |
-    {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+    {{ state_attr('sensor.speiseplan_text', 'text') }}
 
-    {% if menu %}
-    🔵 **Montag**
-    {% if menu.montag and menu.montag.gerichte %}
-    {% for gericht in menu.montag.gerichte %}
-    - {{ gericht }}
-    {% endfor %}
-    {% else %}
-    - _Kein Menü_
-    {% endif %}
-
-    🟢 **Dienstag**
-    {% if menu.dienstag and menu.dienstag.gerichte %}
-    {% for gericht in menu.dienstag.gerichte %}
-    - {{ gericht }}
-    {% endfor %}
-    {% else %}
-    - _Kein Menü_
-    {% endif %}
-
-    🟡 **Mittwoch**
-    {% if menu.mittwoch and menu.mittwoch.gerichte %}
-    {% for gericht in menu.mittwoch.gerichte %}
-    - {{ gericht }}
-    {% endfor %}
-    {% else %}
-    - _Kein Menü_
-    {% endif %}
-
-    🟠 **Donnerstag**
-    {% if menu.donnerstag and menu.donnerstag.gerichte %}
-    {% for gericht in menu.donnerstag.gerichte %}
-    - {{ gericht }}
-    {% endfor %}
-    {% else %}
-    - _Kein Menü_
-    {% endif %}
-
-    🔴 **Freitag**
-    {% if menu.freitag and menu.freitag.gerichte %}
-    {% for gericht in menu.freitag.gerichte %}
-    - {{ gericht }}
-    {% endfor %}
-    {% else %}
-    - _Kein Menü_
-    {% endif %}
-    {% else %}
-    ⚠️ Speiseplan nicht verfügbar
-    {% endif %}
-
+# ============================================================
 # Entities Karte
+# ============================================================
 entities_card:
   type: entities
   title: 🍽️ Speiseplan Status
@@ -96,48 +305,3 @@ entities_card:
     - entity: sensor.speiseplan_heute
       name: Heute
       icon: mdi:food
-
-# Horizontal Stack für einzelne Tage
-days_stack:
-  type: horizontal-stack
-  cards:
-    - type: markdown
-      title: Mo
-      content: |
-        {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
-        {% if menu and menu.montag and menu.montag.gerichte %}
-        {% for g in menu.montag.gerichte[:2] %}{{ g[:30] }}...
-        {% endfor %}
-        {% else %}_-_{% endif %}
-    - type: markdown
-      title: Di
-      content: |
-        {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
-        {% if menu and menu.dienstag and menu.dienstag.gerichte %}
-        {% for g in menu.dienstag.gerichte[:2] %}{{ g[:30] }}...
-        {% endfor %}
-        {% else %}_-_{% endif %}
-    - type: markdown
-      title: Mi
-      content: |
-        {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
-        {% if menu and menu.mittwoch and menu.mittwoch.gerichte %}
-        {% for g in menu.mittwoch.gerichte[:2] %}{{ g[:30] }}...
-        {% endfor %}
-        {% else %}_-_{% endif %}
-    - type: markdown
-      title: Do
-      content: |
-        {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
-        {% if menu and menu.donnerstag and menu.donnerstag.gerichte %}
-        {% for g in menu.donnerstag.gerichte[:2] %}{{ g[:30] }}...
-        {% endfor %}
-        {% else %}_-_{% endif %}
-    - type: markdown
-      title: Fr
-      content: |
-        {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
-        {% if menu and menu.freitag and menu.freitag.gerichte %}
-        {% for g in menu.freitag.gerichte[:2] %}{{ g[:30] }}...
-        {% endfor %}
-        {% else %}_-_{% endif %}

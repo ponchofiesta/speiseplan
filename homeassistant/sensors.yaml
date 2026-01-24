@@ -10,6 +10,7 @@ rest:
         value_template: "{{ value_json.day | default('unbekannt') | title }}"
         json_attributes:
           - gerichte
+          - desserts
           - kw
           - day
           - message
@@ -66,6 +67,13 @@ template:
             {% else %}
               []
             {% endif %}
+          desserts: >
+            {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+            {% if menu and menu.montag %}
+              {{ menu.montag.desserts | default([]) }}
+            {% else %}
+              []
+            {% endif %}
 
       - name: "Speiseplan Dienstag"
         unique_id: speiseplan_dienstag
@@ -82,6 +90,13 @@ template:
             {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
             {% if menu and menu.dienstag %}
               {{ menu.dienstag.gerichte | default([]) }}
+            {% else %}
+              []
+            {% endif %}
+          desserts: >
+            {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+            {% if menu and menu.dienstag %}
+              {{ menu.dienstag.desserts | default([]) }}
             {% else %}
               []
             {% endif %}
@@ -104,6 +119,13 @@ template:
             {% else %}
               []
             {% endif %}
+          desserts: >
+            {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+            {% if menu and menu.mittwoch %}
+              {{ menu.mittwoch.desserts | default([]) }}
+            {% else %}
+              []
+            {% endif %}
 
       - name: "Speiseplan Donnerstag"
         unique_id: speiseplan_donnerstag
@@ -123,6 +145,13 @@ template:
             {% else %}
               []
             {% endif %}
+          desserts: >
+            {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+            {% if menu and menu.donnerstag %}
+              {{ menu.donnerstag.desserts | default([]) }}
+            {% else %}
+              []
+            {% endif %}
 
       - name: "Speiseplan Freitag"
         unique_id: speiseplan_freitag
@@ -139,6 +168,13 @@ template:
             {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
             {% if menu and menu.freitag %}
               {{ menu.freitag.gerichte | default([]) }}
+            {% else %}
+              []
+            {% endif %}
+          desserts: >
+            {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
+            {% if menu and menu.freitag %}
+              {{ menu.freitag.desserts | default([]) }}
             {% else %}
               []
             {% endif %}

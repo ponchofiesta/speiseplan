@@ -270,12 +270,18 @@ def get_today_menu() -> dict:
             "day": day_name,
             "message": "Am Wochenende gibt es kein Schulessen.",
             "gerichte": [],
+            "desserts": [],
         }
 
     speiseplan = get_speiseplan()
 
     if speiseplan.get("error"):
-        return {"day": day_name, "error": speiseplan["error"], "gerichte": []}
+        return {
+            "day": day_name,
+            "error": speiseplan["error"],
+            "gerichte": [],
+            "desserts": [],
+        }
 
     menu = speiseplan.get("menu", {})
     day_menu = menu.get(day_name, {})
@@ -284,6 +290,7 @@ def get_today_menu() -> dict:
         "day": day_name,
         "kw": speiseplan.get("kw"),
         "gerichte": day_menu.get("gerichte", []),
+        "desserts": day_menu.get("desserts", []),
     }
 
 

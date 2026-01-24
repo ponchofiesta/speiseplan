@@ -14,6 +14,7 @@ rest:
         value_template: "{{ value_json.day | title }}"
         json_attributes:
           - gerichte
+          - desserts
           - kw
           - day
         unique_id: speiseplan_heute
@@ -28,6 +29,7 @@ rest:
           - kw
           - year
           - pdf_file
+          - updated
         unique_id: speiseplan_woche
 
   - resource: http://DEINE_SERVER_IP:5123/api/speiseplan/text
@@ -43,85 +45,132 @@ rest:
 
 **Ersetze `DEINE_SERVER_IP` mit der IP-Adresse oder dem Hostnamen, auf dem der Speiseplan-Service läuft.**
 
-## Lovelace Dashboard Karte
+## Lovelace Dashboard Karten
 
-### Markdown Karte für den formatierten Speiseplan
-
-```yaml
-type: markdown
-title: 🍽️ Schulessen
-content: |
-  {{ state_attr('sensor.speiseplan_text', 'text') }}
-```
-
-### Entities Karte für das heutige Menü
-
-```yaml
-type: entities
-title: Heutiges Schulessen
-entities:
-  - entity: sensor.speiseplan_heute
-    name: Tag
-  - type: attribute
-    entity: sensor.speiseplan_heute
-    attribute: gerichte
-    name: Gerichte
-```
-
-### Custom Template Karte (detailliert)
+### Empfohlene Wochenkarte mit Desserts
 
 ```yaml
 type: markdown
-title: 📅 Speiseplan der Woche
+title: 📅 Speiseplan KW {{ state_attr('sensor.speiseplan_woche', 'kw') }}
 content: |
-  **Kalenderwoche {{ state_attr('sensor.speiseplan_woche', 'kw') }}**
-
   {% set menu = state_attr('sensor.speiseplan_woche', 'menu') %}
 
   {% if menu %}
-  🔵 **Montag**
+  ---
+  ### 🔵 Montag
+  {% if menu.montag and menu.montag.gerichte %}
+  🍽️ **Hauptgericht:**
   {% for gericht in menu.montag.gerichte %}
   - {{ gericht }}
   {% endfor %}
+  {% endif %}
+  {% if menu.montag and menu.montag.desserts and menu.montag.desserts | length > 0 %}
+  🍨 **Vorspeise/Dessert:**
+  {% for dessert in menu.montag.desserts %}
+  - {{ dessert }}
+  {% endfor %}
+  {% endif %}
 
-  🟢 **Dienstag**
+  ---
+  ### 🟢 Dienstag
+  {% if menu.dienstag and menu.dienstag.gerichte %}
+  🍽️ **Hauptgericht:**
   {% for gericht in menu.dienstag.gerichte %}
   - {{ gericht }}
   {% endfor %}
+  {% endif %}
+  {% if menu.dienstag and menu.dienstag.desserts and menu.dienstag.desserts | length > 0 %}
+  🍨 **Vorspeise/Dessert:**
+  {% for dessert in menu.dienstag.desserts %}
+  - {{ dessert }}
+  {% endfor %}
+  {% endif %}
 
-  🟡 **Mittwoch**
+  ---
+  ### 🟡 Mittwoch
+  {% if menu.mittwoch and menu.mittwoch.gerichte %}
+  🍽️ **Hauptgericht:**
   {% for gericht in menu.mittwoch.gerichte %}
   - {{ gericht }}
   {% endfor %}
+  {% endif %}
+  {% if menu.mittwoch and menu.mittwoch.desserts and menu.mittwoch.desserts | length > 0 %}
+  🍨 **Vorspeise/Dessert:**
+  {% for dessert in menu.mittwoch.desserts %}
+  - {{ dessert }}
+  {% endfor %}
+  {% endif %}
 
-  🟠 **Donnerstag**
+  ---
+  ### 🟠 Donnerstag
+  {% if menu.donnerstag and menu.donnerstag.gerichte %}
+  🍽️ **Hauptgericht:**
   {% for gericht in menu.donnerstag.gerichte %}
   - {{ gericht }}
   {% endfor %}
+  {% endif %}
+  {% if menu.donnerstag and menu.donnerstag.desserts and menu.donnerstag.desserts | length > 0 %}
+  🍨 **Vorspeise/Dessert:**
+  {% for dessert in menu.donnerstag.desserts %}
+  - {{ dessert }}
+  {% endfor %}
+  {% endif %}
 
-  🔴 **Freitag**
+  ---
+  ### 🔴 Freitag
+  {% if menu.freitag and menu.freitag.gerichte %}
+  🍽️ **Hauptgericht:**
   {% for gericht in menu.freitag.gerichte %}
   - {{ gericht }}
   {% endfor %}
+  {% endif %}
+  {% if menu.freitag and menu.freitag.desserts and menu.freitag.desserts | length > 0 %}
+  🍨 **Vorspeise/Dessert:**
+  {% for dessert in menu.freitag.desserts %}
+  - {{ dessert }}
+  {% endfor %}
+  {% endif %}
+
+  ---
+  _Zuletzt aktualisiert: {{ state_attr('sensor.speiseplan_woche', 'updated')[:16] | replace('T', ' ') }}_
   {% else %}
-  Kein Speiseplan verfügbar
+  ⚠️ Speiseplan nicht verfügbar
   {% endif %}
 ```
 
-### Heutiges Menü Highlight Karte
+### Heutiges Menü mit Desserts
 
 ```yaml
 type: markdown
 title: 🍴 Heute gibt es
 content: |
   {% set gerichte = state_attr('sensor.speiseplan_heute', 'gerichte') %}
-  {% if gerichte %}
+  {% set desserts = state_attr('sensor.speiseplan_heute', 'desserts') %}
+
+  {% if gerichte and gerichte | length > 0 %}
+  🍽️ **Hauptgericht:**
   {% for gericht in gerichte %}
-  **{{ gericht }}**
+  - {{ gericht }}
   {% endfor %}
+
+  {% if desserts and desserts | length > 0 %}
+  🍨 **Vorspeise/Dessert:**
+  {% for dessert in desserts %}
+  - {{ dessert }}
+  {% endfor %}
+  {% endif %}
   {% else %}
   Kein Menü für heute verfügbar
   {% endif %}
+```
+
+### Einfache Text-Karte
+
+```yaml
+type: markdown
+title: 🍽️ Schulessen
+content: |
+  {{ state_attr('sensor.speiseplan_text', 'text') }}
 ```
 
 ## Automatisierung: Benachrichtigung am Morgen
@@ -146,8 +195,12 @@ automation:
           title: "🍽️ Schulessen heute"
           message: >
             {% set gerichte = state_attr('sensor.speiseplan_heute', 'gerichte') %}
+            {% set desserts = state_attr('sensor.speiseplan_heute', 'desserts') %}
             {% if gerichte %}
-            {{ gerichte | join(', ') }}
+            Hauptgericht: {{ gerichte | join(', ') }}
+            {% if desserts %}
+            Dessert: {{ desserts | join(', ') }}
+            {% endif %}
             {% else %}
             Kein Menü verfügbar
             {% endif %}
@@ -160,3 +213,20 @@ automation:
 3. Ersetze `DEINE_SERVER_IP` mit der korrekten IP-Adresse
 4. Starte Home Assistant neu
 5. Füge die Lovelace-Karten zu deinem Dashboard hinzu
+
+## API Endpunkte
+
+| Endpunkt                    | Beschreibung                           |
+| --------------------------- | -------------------------------------- |
+| `/api/speiseplan`           | Kompletter Wochenspeiseplan            |
+| `/api/speiseplan/heute`     | Heutiges Menü mit Gerichten + Desserts |
+| `/api/speiseplan/tag/<tag>` | Menü für einen bestimmten Tag          |
+| `/api/speiseplan/text`      | Formatierter Text für Markdown         |
+| `/api/health`               | Health-Check                           |
+
+## Datenstruktur
+
+Jeder Tag enthält:
+
+- `gerichte`: Array mit Hauptgerichten
+- `desserts`: Array mit Vorspeisen/Desserts

@@ -95,6 +95,7 @@ def api_tag(tag: str):
             "tag": tag,
             "kw": speiseplan.get("kw"),
             "gerichte": day_menu.get("gerichte", []),
+            "desserts": day_menu.get("desserts", []),
         }
     )
 
