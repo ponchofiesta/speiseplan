@@ -8,10 +8,15 @@ und im Ordner 'pdf_speiseplaene/' gespeichert.
 Verwendet:
 - download_pdfs.py: Automatischer Download der PDFs
 - parse_pdfs.py: Parsing der PDF-Inhalte
+
+Thread-Safety:
+- Bei parallelen Anfragen für die gleiche KW wird nur einmal heruntergeladen
+- Andere Anfragen warten auf das Ergebnis der laufenden Verarbeitung
 """
 
 import json
 import logging
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -27,6 +32,26 @@ logger = logging.getLogger(__name__)
 # Konstanten
 PDF_FOLDER = Path("pdf_speiseplaene")
 CACHE_FILE = "speiseplan_cache.json"
+
+# Thread-Synchronisation für parallele Anfragen
+# Lock pro Kalenderwoche, um parallele Downloads/Verarbeitung zu verhindern
+_week_locks: dict[int, threading.Lock] = {}
+_week_locks_guard = threading.Lock()  # Schützt den Zugriff auf _week_locks
+
+# Tracking für laufende Verarbeitungen
+_processing_events: dict[int, threading.Event] = {}
+_processing_results: dict[int, dict] = {}
+_processing_guard = (
+    threading.Lock()
+)  # Schützt _processing_events und _processing_results
+
+
+def _get_week_lock(week_number: int) -> threading.Lock:
+    """Holt oder erstellt einen Lock für eine bestimmte Kalenderwoche."""
+    with _week_locks_guard:
+        if week_number not in _week_locks:
+            _week_locks[week_number] = threading.Lock()
+        return _week_locks[week_number]
 
 
 def get_current_week_number() -> int:
@@ -73,42 +98,114 @@ def get_speiseplan(week_number: int = None) -> dict:
     """
     Hauptfunktion: Holt den Speiseplan für eine bestimmte Woche.
     Lädt die PDF bei Bedarf automatisch herunter.
+
+    Thread-Safety:
+    - Bei parallelen Anfragen für die gleiche KW wird nur einmal verarbeitet
+    - Nachfolgende Anfragen warten auf das Ergebnis und erhalten es dann
     """
     if week_number is None:
         week_number = get_current_week_number()
 
-    logger.info(f"Hole Speiseplan für KW {week_number}")
+    logger.info(
+        f"Hole Speiseplan für KW {week_number} (Thread: {threading.current_thread().name})"
+    )
 
-    # Cache prüfen (24 Stunden gültig)
+    # 1. Cache prüfen (schneller Pfad, kein Lock nötig)
     cached = load_cache(week_number)
     if cached:
         logger.info("Speiseplan aus Cache geladen")
         return cached
 
-    # PDF-Datei finden oder herunterladen
-    pdf_path = ensure_pdf_available(week_number)
-    if not pdf_path:
-        return {
-            "error": f"Kein Speiseplan für KW {week_number} verfügbar. Automatischer Download fehlgeschlagen.",
-            "kw": week_number,
-            "menu": None,
-        }
+    # 2. Prüfe ob bereits eine Verarbeitung für diese KW läuft
+    with _processing_guard:
+        if week_number in _processing_events:
+            # Andere Anfrage verarbeitet gerade diese KW - warten
+            event = _processing_events[week_number]
+            logger.info(
+                f"KW {week_number} wird bereits verarbeitet, warte auf Ergebnis..."
+            )
 
-    # Menü extrahieren (extract_menu_from_pdf aus parse_pdfs.py nimmt Path)
-    menu = extract_menu_from_pdf(pdf_path)
+    # Falls Event existiert, außerhalb des Locks warten
+    if week_number in _processing_events:
+        event = _processing_events[week_number]
+        event.wait(timeout=120)  # Max 2 Minuten warten
 
-    result = {
-        "kw": week_number,
-        "year": datetime.now().year,
-        "pdf_file": str(pdf_path),
-        "menu": menu,
-        "updated": datetime.now().isoformat(),
-    }
+        # Ergebnis abholen
+        with _processing_guard:
+            if week_number in _processing_results:
+                logger.info(
+                    f"Ergebnis für KW {week_number} von anderer Anfrage erhalten"
+                )
+                return _processing_results[week_number]
 
-    # Cache speichern
-    save_cache(week_number, result)
+        # Falls kein Ergebnis, Cache nochmal prüfen
+        cached = load_cache(week_number)
+        if cached:
+            return cached
 
-    return result
+    # 3. Lock für diese KW holen und Verarbeitung starten
+    week_lock = _get_week_lock(week_number)
+
+    with week_lock:
+        # Double-check: Vielleicht hat eine andere Anfrage gerade den Cache gefüllt
+        cached = load_cache(week_number)
+        if cached:
+            logger.info("Speiseplan aus Cache geladen (nach Lock)")
+            return cached
+
+        # Event setzen um andere Anfragen zu informieren
+        with _processing_guard:
+            _processing_events[week_number] = threading.Event()
+
+        try:
+            logger.info(f"Starte Verarbeitung für KW {week_number}")
+
+            # PDF-Datei finden oder herunterladen
+            pdf_path = ensure_pdf_available(week_number)
+            if not pdf_path:
+                result = {
+                    "error": f"Kein Speiseplan für KW {week_number} verfügbar. Automatischer Download fehlgeschlagen.",
+                    "kw": week_number,
+                    "menu": None,
+                }
+            else:
+                # Menü extrahieren
+                menu = extract_menu_from_pdf(pdf_path)
+
+                result = {
+                    "kw": week_number,
+                    "year": datetime.now().year,
+                    "pdf_file": str(pdf_path),
+                    "menu": menu,
+                    "updated": datetime.now().isoformat(),
+                }
+
+                # Cache speichern
+                save_cache(week_number, result)
+
+            # Ergebnis für wartende Anfragen speichern
+            with _processing_guard:
+                _processing_results[week_number] = result
+
+            return result
+
+        finally:
+            # Event signalisieren und aufräumen
+            with _processing_guard:
+                if week_number in _processing_events:
+                    _processing_events[week_number].set()
+
+                    # Verzögerte Bereinigung (damit wartende Threads das Ergebnis noch lesen können)
+                    def cleanup():
+                        import time
+
+                        time.sleep(5)
+                        with _processing_guard:
+                            _processing_events.pop(week_number, None)
+                            _processing_results.pop(week_number, None)
+
+                    cleanup_thread = threading.Thread(target=cleanup, daemon=True)
+                    cleanup_thread.start()
 
 
 def load_cache(week_number: int) -> Optional[dict]:
