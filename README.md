@@ -20,38 +20,44 @@ Ein Python-Service, der den Schul-Speiseplan von der Wollino-Website automatisch
 cd /pfad/zu/deinem/projekt
 ```
 
-### 2. Python Virtual Environment erstellen (empfohlen)
+### 2. uv installieren
 
 ```bash
-python -m venv venv
+pip install uv
+```
 
+### 3. Abhängigkeiten synchronisieren
+
+```bash
+uv sync --locked
+```
+
+Dadurch wird automatisch eine lokale virtuelle Umgebung in `.venv/` mit den in `pyproject.toml` und `uv.lock` definierten Abhängigkeiten erstellt.
+
+### 4. Umgebung aktivieren (optional)
+
+```bash
 # Windows
-venv\Scripts\activate
+.venv\Scripts\activate
 
 # Linux/Mac
-source venv/bin/activate
+source .venv/bin/activate
 ```
 
-### 3. Abhängigkeiten installieren
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. PDF-Dateien ablegen
+### 5. PDF-Dateien ablegen
 
 Lade die Speiseplan-PDFs von https://www.wollino.de/newpage herunter und lege sie in den Ordner `pdf_speiseplaene/`.
 
-### 5. Service testen
+### 6. Service testen
 
 ```bash
-python speiseplan_service.py
+uv run python speiseplan_service.py
 ```
 
-### 6. API Server starten
+### 7. API Server starten
 
 ```bash
-python api_server.py
+uv run python api_server.py
 ```
 
 Der Server läuft standardmäßig auf Port 5123: http://localhost:5123
@@ -145,42 +151,13 @@ services:
 
 Für lokales Build ändere `image:` zu `build: .`
 
-## Als Systemd Service (Linux)
-
-Erstelle `/etc/systemd/system/speiseplan.service`:
-
-```ini
-[Unit]
-Description=Speiseplan Service
-After=network.target
-
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/home/pi/speiseplan
-ExecStart=/home/pi/speiseplan/venv/bin/python api_server.py
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Aktivieren und starten:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable speiseplan
-sudo systemctl start speiseplan
-```
-
 ## Konfiguration
 
 Die Konfiguration erfolgt direkt in `speiseplan_service.py`:
 
-| Variable      | Beschreibung                 | Standard                                      |
-| ------------- | ---------------------------- | --------------------------------------------- |
-| `WOLLINO_URL` | URL zur Speiseplan-Übersicht | `https://www.wollino.de/grundschulenc4f8564f` |
-| `CACHE_FILE`  | Pfad zur Cache-Datei         | `speiseplan_cache.json`                       |
+| Variable     | Beschreibung         | Standard                |
+| ------------ | -------------------- | ----------------------- |
+| `CACHE_FILE` | Pfad zur Cache-Datei | `speiseplan_cache.json` |
 
 ## Fehlerbehebung
 
