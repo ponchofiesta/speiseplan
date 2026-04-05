@@ -55,7 +55,10 @@ def api_text():
     """
     kw = request.args.get("kw", type=int)
     speiseplan = get_speiseplan(kw)
-    text = format_menu_for_display(speiseplan)
+    if speiseplan.get("error"):
+        text = speiseplan["error"]
+    else:
+        text = format_menu_for_display(speiseplan.get("menu", {}))
     return jsonify({"text": text, "kw": speiseplan.get("kw")})
 
 

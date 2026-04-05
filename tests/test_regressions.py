@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import api_server
 import download_pdfs
 import speiseplan_service
 
@@ -78,6 +79,38 @@ class DownloadPdfsRegressionTests(unittest.TestCase):
 
         self.assertEqual(stats["found"], 0)
         scraper.close.assert_called_once_with()
+
+
+class ApiServerRegressionTests(unittest.TestCase):
+    def test_text_endpoint_formats_menu_instead_of_full_response(self):
+        app = api_server.app
+        app.testing = True
+
+        sample_plan = {
+            "kw": 7,
+            "menu": {
+                "montag": {
+                    "gerichte": ["Hähnchenbrust", "Reis"],
+                    "desserts": ["Salat mit Tomate"],
+                },
+                "dienstag": {"gerichte": [], "desserts": []},
+                "mittwoch": {"gerichte": [], "desserts": []},
+                "donnerstag": {"gerichte": [], "desserts": []},
+                "freitag": {"gerichte": [], "desserts": []},
+            },
+        }
+
+        with app.test_client() as client, patch(
+            "api_server.get_speiseplan", return_value=sample_plan
+        ):
+            response = client.get("/api/speiseplan/text?kw=7")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["kw"], 7)
+        self.assertIn("Hähnchenbrust", payload["text"])
+        self.assertIn("Salat mit Tomate", payload["text"])
+        self.assertNotIn("Montag: Kein Menü", payload["text"])
 
 
 if __name__ == "__main__":
