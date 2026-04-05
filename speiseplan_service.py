@@ -32,6 +32,8 @@ logger = logging.getLogger(__name__)
 # Konstanten
 PDF_FOLDER = Path("pdf_speiseplaene")
 CACHE_FILE = "speiseplan_cache.json"
+CACHE_TTL_SUCCESS = timedelta(hours=24)
+CACHE_TTL_ERROR = timedelta(hours=2)
 
 # Thread-Synchronisation für parallele Anfragen
 # Lock pro Kalenderwoche, um parallele Downloads/Verarbeitung zu verhindern
@@ -40,10 +42,7 @@ _week_locks_guard = threading.Lock()  # Schützt den Zugriff auf _week_locks
 
 # Tracking für laufende Verarbeitungen
 _processing_events: dict[int, threading.Event] = {}
-_processing_results: dict[int, dict] = {}
-_processing_guard = (
-    threading.Lock()
-)  # Schützt _processing_events und _processing_results
+_processing_guard = threading.Lock()  # Schützt _processing_events
 
 
 def _get_week_lock(week_number: int) -> threading.Lock:
@@ -117,30 +116,21 @@ def get_speiseplan(week_number: int = None) -> dict:
         return cached
 
     # 2. Prüfe ob bereits eine Verarbeitung für diese KW läuft
+    event = None
     with _processing_guard:
-        if week_number in _processing_events:
-            # Andere Anfrage verarbeitet gerade diese KW - warten
-            event = _processing_events[week_number]
+        event = _processing_events.get(week_number)
+        if event:
             logger.info(
                 f"KW {week_number} wird bereits verarbeitet, warte auf Ergebnis..."
             )
 
     # Falls Event existiert, außerhalb des Locks warten
-    if week_number in _processing_events:
-        event = _processing_events[week_number]
+    if event:
         event.wait(timeout=120)  # Max 2 Minuten warten
 
-        # Ergebnis abholen
-        with _processing_guard:
-            if week_number in _processing_results:
-                logger.info(
-                    f"Ergebnis für KW {week_number} von anderer Anfrage erhalten"
-                )
-                return _processing_results[week_number]
-
-        # Falls kein Ergebnis, Cache nochmal prüfen
         cached = load_cache(week_number)
         if cached:
+            logger.info(f"Ergebnis für KW {week_number} von anderer Anfrage erhalten")
             return cached
 
     # 3. Lock für diese KW holen und Verarbeitung starten
@@ -167,6 +157,7 @@ def get_speiseplan(week_number: int = None) -> dict:
                     "error": f"Kein Speiseplan für KW {week_number} verfügbar. Automatischer Download fehlgeschlagen.",
                     "kw": week_number,
                     "menu": None,
+                    "updated": datetime.now().isoformat(),
                 }
             else:
                 # Menü extrahieren
@@ -180,32 +171,18 @@ def get_speiseplan(week_number: int = None) -> dict:
                     "updated": datetime.now().isoformat(),
                 }
 
-                # Cache speichern
-                save_cache(week_number, result)
-
-            # Ergebnis für wartende Anfragen speichern
-            with _processing_guard:
-                _processing_results[week_number] = result
+            save_cache(week_number, result)
 
             return result
 
         finally:
-            # Event signalisieren und aufräumen
+            # Event signalisieren und sofort entfernen.
+            # Wartende Threads halten bereits eine Referenz auf das Event und
+            # lesen das Ergebnis anschließend aus dem Cache.
             with _processing_guard:
-                if week_number in _processing_events:
-                    _processing_events[week_number].set()
-
-                    # Verzögerte Bereinigung (damit wartende Threads das Ergebnis noch lesen können)
-                    def cleanup():
-                        import time
-
-                        time.sleep(5)
-                        with _processing_guard:
-                            _processing_events.pop(week_number, None)
-                            _processing_results.pop(week_number, None)
-
-                    cleanup_thread = threading.Thread(target=cleanup, daemon=True)
-                    cleanup_thread.start()
+                current_event = _processing_events.pop(week_number, None)
+                if current_event:
+                    current_event.set()
 
 
 def load_cache(week_number: int) -> Optional[dict]:
@@ -215,10 +192,11 @@ def load_cache(week_number: int) -> Optional[dict]:
             cache = json.load(f)
             if cache.get("kw") == week_number:
                 updated = datetime.fromisoformat(cache.get("updated", "2000-01-01"))
-                if datetime.now() - updated < timedelta(hours=24):
+                max_age = CACHE_TTL_ERROR if cache.get("error") else CACHE_TTL_SUCCESS
+                if datetime.now() - updated < max_age:
                     return cache
                 else:
-                    logger.info("Cache älter als 24 Stunden, lade neu...")
+                    logger.info("Cache abgelaufen, lade neu...")
     except (FileNotFoundError, json.JSONDecodeError):
         pass
     return None

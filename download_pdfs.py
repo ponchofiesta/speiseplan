@@ -111,6 +111,9 @@ def navigate_to_menuplaene(scraper: cloudscraper.CloudScraper) -> str:
         except Exception as e:
             logger.error(f"  ✗ Fehler bei {step['name']}: {e}")
             raise
+        finally:
+            if response is not None and response is not last_response:
+                response.close()
 
     return last_response.text if last_response else ""
 
@@ -285,6 +288,9 @@ def download_pdf(
     except Exception as e:
         logger.error(f"  ✗ Fehler beim Download: {e}")
         return False
+    finally:
+        if 'response' in locals() and response is not None:
+            response.close()
 
 
 def download_all_pdfs(target_kw: int = None) -> dict:
@@ -306,56 +312,58 @@ def download_all_pdfs(target_kw: int = None) -> dict:
     # Session erstellen
     logger.info("\n1. Erstelle Browser-Session...")
     scraper = create_session()
-
-    # Durch die Website navigieren
-    logger.info("\n2. Navigiere durch die Website...")
     try:
-        html = navigate_to_menuplaene(scraper)
-    except Exception as e:
-        logger.error(f"Navigation fehlgeschlagen: {e}")
-        return stats
+        # Durch die Website navigieren
+        logger.info("\n2. Navigiere durch die Website...")
+        try:
+            html = navigate_to_menuplaene(scraper)
+        except Exception as e:
+            logger.error(f"Navigation fehlgeschlagen: {e}")
+            return stats
 
-    # PDF-Links extrahieren
-    logger.info("\n3. Extrahiere PDF-Links...")
-    pdf_links = extract_pdf_links(html)
-    stats["found"] = len(pdf_links)
+        # PDF-Links extrahieren
+        logger.info("\n3. Extrahiere PDF-Links...")
+        pdf_links = extract_pdf_links(html)
+        stats["found"] = len(pdf_links)
 
-    if not pdf_links:
-        logger.warning("Keine PDF-Links gefunden!")
-        return stats
+        if not pdf_links:
+            logger.warning("Keine PDF-Links gefunden!")
+            return stats
 
-    logger.info(f"   {len(pdf_links)} Speisepläne gefunden")
+        logger.info(f"   {len(pdf_links)} Speisepläne gefunden")
 
-    # PDFs herunterladen
-    logger.info("\n4. Lade PDFs herunter...")
+        # PDFs herunterladen
+        logger.info("\n4. Lade PDFs herunter...")
 
-    for pdf_info in pdf_links:
-        # Wenn eine bestimmte KW gewünscht ist, andere überspringen
-        if target_kw is not None and pdf_info["kw"] != target_kw:
-            continue
+        for pdf_info in pdf_links:
+            # Wenn eine bestimmte KW gewünscht ist, andere überspringen
+            if target_kw is not None and pdf_info["kw"] != target_kw:
+                continue
 
-        # Prüfe ob PDF schon existiert
-        filepath = PDF_FOLDER / pdf_info["filename"]
-        if filepath.exists():
-            logger.info(f"   Überspringe KW {pdf_info['kw']} (existiert bereits)")
-            stats["skipped"] += 1
-            stats["pdfs"].append(
-                {"kw": pdf_info["kw"], "status": "skipped", "file": str(filepath)}
-            )
-            continue
+            # Prüfe ob PDF schon existiert
+            filepath = PDF_FOLDER / pdf_info["filename"]
+            if filepath.exists():
+                logger.info(f"   Überspringe KW {pdf_info['kw']} (existiert bereits)")
+                stats["skipped"] += 1
+                stats["pdfs"].append(
+                    {"kw": pdf_info["kw"], "status": "skipped", "file": str(filepath)}
+                )
+                continue
 
-        # Kurze Pause zwischen Downloads
-        time.sleep(1)
+            # Kurze Pause zwischen Downloads
+            time.sleep(1)
 
-        # Download
-        if download_pdf(scraper, pdf_info, NAV_STEPS[-1]["url"]):
-            stats["downloaded"] += 1
-            stats["pdfs"].append(
-                {"kw": pdf_info["kw"], "status": "downloaded", "file": str(filepath)}
-            )
-        else:
-            stats["failed"] += 1
-            stats["pdfs"].append({"kw": pdf_info["kw"], "status": "failed"})
+            # Download
+            if download_pdf(scraper, pdf_info, NAV_STEPS[-1]["url"]):
+                stats["downloaded"] += 1
+                stats["pdfs"].append(
+                    {"kw": pdf_info["kw"], "status": "downloaded", "file": str(filepath)}
+                )
+            else:
+                stats["failed"] += 1
+                stats["pdfs"].append({"kw": pdf_info["kw"], "status": "failed"})
+    finally:
+        scraper.close()
 
     # Zusammenfassung
     logger.info("\n" + "=" * 60)
