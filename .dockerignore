@@ -1,0 +1,15 @@
+.git
+.github
+.pytest_cache/
+.ruff_cache/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.debug.json
+docker-compose.yml
+pdf_speiseplaene/
+tests/
+speiseplan_cache.json
